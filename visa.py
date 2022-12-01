@@ -36,8 +36,25 @@ PUSH_USER = config['PUSHOVER']['PUSH_USER']
 LOCAL_USE = config['CHROMEDRIVER'].getboolean('LOCAL_USE')
 HUB_ADDRESS = config['CHROMEDRIVER']['HUB_ADDRESS']
 
+TOKEN = config['TELEGRAM']['TOKEN']
+CHATID = config['TELEGRAM']['CHATID']
+
 REGEX_CONTINUE = "//a[contains(text(),'Continuar')]"
 
+MONTH = {
+    "January": 1,
+    "February": 2,
+    "March": 3,
+    "April": 4,
+    "May": 5,
+    "June": 6,
+    "July": 7,
+    "August": 8,
+    "September": 9,
+    "October": 10,
+    "November": 11,
+    "December": 12
+}
 
 # def MY_CONDITION(month, day): return int(month) == 11 and int(day) >= 5
 def MY_CONDITION(month, day): return True # No custom condition wanted for the new scheduled date
@@ -50,36 +67,19 @@ COOLDOWN_TIME = 60*60  # wait time when temporary banned (empty list): 60 minute
 DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{FACILITY_ID}.json?appointments[expedite]=false"
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
 APPOINTMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment"
+INSTRUCTIONS_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/instructions"
 EXIT = False
 
 
-def send_notification(msg):
-    print(f"Sending notification: {msg}")
+def send_notification(message):
+    print(f"Sending notification: {message}")
 
-    if SENDGRID_API_KEY:
-        message = Mail(
-            from_email=USERNAME,
-            to_emails=USERNAME,
-            subject=msg,
-            html_content=msg)
-        try:
-            sg = SendGridAPIClient(SENDGRID_API_KEY)
-            response = sg.send(message)
-            print(response.status_code)
-            print(response.body)
-            print(response.headers)
-        except Exception as e:
-            print(e.message)
-
-    if PUSH_TOKEN:
-        url = "https://api.pushover.net/1/messages.json"
-        data = {
-            "token": PUSH_TOKEN,
-            "user": PUSH_USER,
-            "message": msg
-        }
-        requests.post(url, data)
-
+    url = f'https://api.telegram.org/bot{TOKEN}/sendMessage'
+    parameters = {
+        'chat_id': CHATID,
+        'text': message
+    }
+    return requests.post(url, parameters)
 
 def get_driver():
     if LOCAL_USE:
@@ -134,9 +134,9 @@ def do_login_action():
     btn.click()
     time.sleep(random.randint(1, 3))
 
-    Wait(driver, 60).until(
-        EC.presence_of_element_located((By.XPATH, REGEX_CONTINUE)))
-    print("\tlogin successful!")
+    # Wait(driver, 60).until(
+    #     EC.presence_of_element_located((By.XPATH, REGEX_CONTINUE)))
+    # print("\tlogin successful!")
 
 
 def get_date():
@@ -159,6 +159,17 @@ def get_time(date):
     print(f"Got time successfully! {date} {time}")
     return time
 
+def get_current(): # current scheduled date time 
+    """! Not in a very proper way. To be modified in the future
+    """
+    driver.get(INSTRUCTIONS_URL)
+    datetimestring = driver.find_element(by=By.XPATH, value='/html/body/div[4]/main/div[4]/div[1]/div/div[2]/div/div/div[2]/div/div[1]/div/p').get_attribute('textContent')
+    print(datetimestring)
+    datetimestring = datetimestring[1:-1] # get rid of the two /n of the head and the tail
+    datetimestring = ' '.join(datetimestring.split(', ')[:2]) 
+    MY_SCHEDULE_DATE = datetime.strptime(datetimestring, " %d %B %Y")
+    send_notification(f"My scheduled date: {MY_SCHEDULE_DATE}")
+    return MY_SCHEDULE_DATE
 
 def reschedule(date):
     global EXIT
@@ -214,10 +225,10 @@ def get_available_date(dates):
     global last_seen
 
     def is_earlier(date):
-        my_date = datetime.strptime(MY_SCHEDULE_DATE, "%Y-%m-%d")
+        my_date = MY_SCHEDULE_DATE
         new_date = datetime.strptime(date, "%Y-%m-%d")
         result = my_date > new_date
-        print(f'Is {my_date} > {new_date}:\t{result}')
+        print(f'Is {my_date} > {new_date} ?\t{result}')
         return result
 
     print("Checking for an earlier date:")
@@ -239,6 +250,8 @@ def push_notification(dates):
 
 if __name__ == "__main__":
     login()
+    get_current()
+    send_notification("LOL")
     retry_count = 0
     while 1:
         if retry_count > 6:
@@ -280,3 +293,6 @@ if __name__ == "__main__":
 
     if(not EXIT):
         send_notification("HELP! Crashed.")
+    driver.close()
+    pass
+
