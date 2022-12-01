@@ -233,7 +233,7 @@ def wake_up_condition_blocked():
         Only wake up before exact hours
     """
     now = datetime.now()
-    minute = now.minute()
+    minute = now.minute
     if minute % 60 >= 55: return True
     return False
     
@@ -242,7 +242,7 @@ def wake_up_condition_unblocked():
         Only wake up before every 10 mins
     """
     now = datetime.now()
-    minute = now.minute()
+    minute = now.minute
     if minute % 10 >= 9: return True
     return False
 
