@@ -243,7 +243,7 @@ def wake_up_condition_unblocked():
     """
     now = datetime.now()
     minute = now.minute
-    if minute % 10 >= 9: return True
+    if minute % 10 >= 5: return True
     return False
 
 if __name__ == "__main__":
