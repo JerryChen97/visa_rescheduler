@@ -18,6 +18,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
+import schedule
+
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -25,7 +27,6 @@ config.read('config.ini')
 USERNAME = config['USVISA']['USERNAME']
 PASSWORD = config['USVISA']['PASSWORD']
 SCHEDULE_ID = config['USVISA']['SCHEDULE_ID']
-MY_SCHEDULE_DATE = config['USVISA']['MY_SCHEDULE_DATE']
 COUNTRY_CODE = config['USVISA']['COUNTRY_CODE'] 
 FACILITY_ID = config['USVISA']['FACILITY_ID']
 
@@ -42,7 +43,7 @@ CHATID = config['TELEGRAM']['CHATID']
 REGEX_CONTINUE = "//a[contains(text(),'Continuar')]"
 
 # def MY_CONDITION(month, day): return int(month) == 11 and int(day) >= 5
-def MY_CONDITION(month, day): return True # No custom condition wanted for the new scheduled date
+def MY_CONDITION(year, month, day): return True # No custom condition wanted for the new scheduled date
 
 STEP_TIME = 0.5  # time between steps (interactions with forms): 0.5 seconds
 RETRY_TIME = 60*10  # wait time between retries/checks for available dates: 10 minutes
@@ -56,6 +57,10 @@ TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_I
 APPOINTMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment"
 INSTRUCTIONS_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/instructions"
 
+MY_SCHEDULE_DATE = datetime.strptime("2024-11-11", "%Y-%m-%d")
+
+def print_current_time():
+    print(f"Current precise time ", datetime.now())
 
 def send_notification(message):
     print(f"Sending notification: {message}")
@@ -120,10 +125,6 @@ def do_login_action():
     btn.click()
     time.sleep(random.randint(1, 3))
 
-    # Wait(driver, 60).until(
-    #     EC.presence_of_element_located((By.XPATH, REGEX_CONTINUE)))
-    # print("\tlogin successful!")
-
 
 def get_date():
     driver.get(DATE_URL)
@@ -148,12 +149,13 @@ def get_time(date):
 def get_current(): # current scheduled date time 
     """! Not in a very proper way. To be modified in the future
     """
+    global MY_SCHEDULE_DATE
     driver.get(INSTRUCTIONS_URL)
     datetimestring = driver.find_element(by=By.XPATH, value='/html/body/div[4]/main/div[4]/div[1]/div/div[2]/div/div/div[2]/div/div[1]/div/p').get_attribute('textContent')
     print(datetimestring)
     datetimestring = datetimestring[1:-1] # get rid of the two /n of the head and the tail
-    datetimestring = ' '.join(datetimestring.split(', ')[:2]) 
-    MY_SCHEDULE_DATE = datetime.strptime(datetimestring, " %d %B %Y")
+    datetimestring = ' '.join(datetimestring.split(', ')[:2]).strip()
+    MY_SCHEDULE_DATE = datetime.strptime(datetimestring, "%d %B %Y")
     send_notification(f"My scheduled date: {MY_SCHEDULE_DATE}")
     return MY_SCHEDULE_DATE
 
@@ -184,6 +186,7 @@ def reschedule(date):
     
     get_current()
     msg = f'After reschedule try, current date: {MY_SCHEDULE_DATE}'
+    send_notification(msg)
 
 
 def is_logged_in():
@@ -193,6 +196,12 @@ def is_logged_in():
     return True
 
 
+def refresh():    
+    print("REFRESH")
+    print_current_time()
+    driver.get(INSTRUCTIONS_URL) # avoid calling query API too many times
+    driver.refresh() # avoiding auto logout
+
 def print_dates(dates):
     print("Available dates:")
     for d in dates:
@@ -200,34 +209,45 @@ def print_dates(dates):
     print()
 
 
-last_seen = None
-
-
 def get_available_date(dates):
-    global last_seen
-
+    
     def is_earlier(date):
-        my_date = MY_SCHEDULE_DATE
         new_date = datetime.strptime(date, "%Y-%m-%d")
-        result = my_date > new_date
-        print(f'Is {my_date} > {new_date} ?\t{result}')
+        result = MY_SCHEDULE_DATE > new_date
+        print(f'Is {MY_SCHEDULE_DATE} > {new_date} ?\t{result}')
         return result
 
     print("Checking for an earlier date:")
     for d in dates:
         date = d.get('date')
-        if is_earlier(date) and date != last_seen:
-            _, month, day = date.split('-')
-            if(MY_CONDITION(month, day)):
-                last_seen = date
+        if is_earlier(date):
+            year, month, day = date.split('-')
+            if(MY_CONDITION(year, month, day)):
                 return date
 
 
-def push_notification(dates):
-    msg = "date: "
-    for d in dates:
-        msg = msg + d.get('date') + '; '
-    send_notification(msg)
+def update_reschedule():
+    
+    print("RESCHEDULE")
+    print_current_time()
+    dates = get_date()[:2]
+    # if not dates:
+    #     msg = "List is empty! Maybe you were blocked. Sleep till next hour."
+    #     send_notification(msg)
+    #     wake_up_condition = wake_up_condition_blocked
+        
+    #     time.sleep(REST_TIME)
+    #     continue
+    # else:
+    #     wake_up_condition = wake_up_condition_unblocked
+
+    print_dates(dates)
+    date = get_available_date(dates)
+    print()
+    print(f"New date: {date}")
+    if date:
+        reschedule(date)
+
 
 def wake_up_condition_blocked():
     """
@@ -267,49 +287,60 @@ if __name__ == "__main__":
     send_notification("LOL")
     # retry_count = 0
 
-    wake_up_condition = wake_up_condition_unblocked
+    schedule.every(3.3).minutes.do(refresh)
+    schedule.every().hour.at(":00").do(update_reschedule)
+    schedule.every().hour.at(":10").do(update_reschedule)
+    schedule.every().hour.at(":20").do(update_reschedule)
+    schedule.every().hour.at(":30").do(update_reschedule)
+    schedule.every().hour.at(":40").do(update_reschedule)
+    schedule.every().hour.at(":50").do(update_reschedule)
+
+    # wake_up_condition = wake_up_condition_unblocked
     while True:
+        try:
+            schedule.run_pending()
+            time.sleep(1)
         # if retry_count > 6:
         #     break
-        if not wake_up_condition(): 
-            driver.refresh() # avoiding auto logout
-            time.sleep(REST_TIME)
-            continue
-        if not wake_up_condition_nap(): 
-            # not satisfying the condition to end nap, so continue
-            time.sleep(NAP_TIME)
-        try:
-            print("------------------")
-            print(f"Current precise time ", datetime.now())
-            # print(f"Retry count: {retry_count}")
-            print()
+        # if not wake_up_condition(): 
+        #     driver.get(INSTRUCTIONS_URL) # avoid calling query API too many times
+        #     driver.refresh() # avoiding auto logout
+        #     time.sleep(REST_TIME)
+        #     continue
+        # if not wake_up_condition_nap(): 
+        #     # not satisfying the condition to end nap, so continue
+        #     time.sleep(NAP_TIME)
+        # try:
+        #     print("------------------")
+        #     print(f"Current precise time ", datetime.now())
+        #     # print(f"Retry count: {retry_count}")
+        #     print()
 
-            dates = get_date()[:1]
-            if not dates:
-                msg = "List is empty! Maybe you were blocked. Sleep till next hour."
-                send_notification(msg)
-                wake_up_condition = wake_up_condition_blocked
+        #     dates = get_date()[:1]
+        #     if not dates:
+        #         msg = "List is empty! Maybe you were blocked. Sleep till next hour."
+        #         send_notification(msg)
+        #         wake_up_condition = wake_up_condition_blocked
                 
-                time.sleep(REST_TIME)
-                continue
-            else:
-                wake_up_condition = wake_up_condition_unblocked
+        #         time.sleep(REST_TIME)
+        #         continue
+        #     else:
+        #         wake_up_condition = wake_up_condition_unblocked
 
-            print_dates(dates)
-            date = get_available_date(dates)
-            print()
-            print(f"New date: {date}")
-            if date:
-                reschedule(date)
-                push_notification(dates)
+        #     print_dates(dates)
+        #     date = get_available_date(dates)
+        #     print()
+        #     print(f"New date: {date}")
+        #     if date:
+        #         reschedule(date)
 
-            if not dates:
-              msg = "List is empty"
-              send_notification(msg)
-              #EXIT = True
-              time.sleep(COOLDOWN_TIME)
-            else:
-              time.sleep(RETRY_TIME)
+        #     if not dates:
+        #       msg = "List is empty"
+        #       send_notification(msg)
+        #       #EXIT = True
+        #       time.sleep(COOLDOWN_TIME)
+        #     else:
+        #       time.sleep(RETRY_TIME)
 
         except:
             # retry_count += 1
