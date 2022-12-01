@@ -41,21 +41,6 @@ CHATID = config['TELEGRAM']['CHATID']
 
 REGEX_CONTINUE = "//a[contains(text(),'Continuar')]"
 
-MONTH = {
-    "January": 1,
-    "February": 2,
-    "March": 3,
-    "April": 4,
-    "May": 5,
-    "June": 6,
-    "July": 7,
-    "August": 8,
-    "September": 9,
-    "October": 10,
-    "November": 11,
-    "December": 12
-}
-
 # def MY_CONDITION(month, day): return int(month) == 11 and int(day) >= 5
 def MY_CONDITION(month, day): return True # No custom condition wanted for the new scheduled date
 
@@ -198,7 +183,7 @@ def reschedule(date):
     
     get_current()
     msg = f'After reschedule try, current date: {MY_SCHEDULE_DATE}'
-    
+
 
 def is_logged_in():
     content = driver.page_source
