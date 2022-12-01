@@ -231,16 +231,6 @@ def update_reschedule():
     print("RESCHEDULE")
     print_current_time()
     dates = get_date()[:2]
-    # if not dates:
-    #     msg = "List is empty! Maybe you were blocked. Sleep till next hour."
-    #     send_notification(msg)
-    #     wake_up_condition = wake_up_condition_blocked
-        
-    #     time.sleep(REST_TIME)
-    #     continue
-    # else:
-    #     wake_up_condition = wake_up_condition_unblocked
-
     print_dates(dates)
     date = get_available_date(dates)
     print()
@@ -285,7 +275,6 @@ if __name__ == "__main__":
     login()
     get_current()
     send_notification("LOL")
-    # retry_count = 0
 
     schedule.every(3.3).minutes.do(refresh)
     schedule.every().hour.at(":00").do(update_reschedule)
@@ -295,55 +284,12 @@ if __name__ == "__main__":
     schedule.every().hour.at(":40").do(update_reschedule)
     schedule.every().hour.at(":50").do(update_reschedule)
 
-    # wake_up_condition = wake_up_condition_unblocked
     while True:
         try:
             schedule.run_pending()
             time.sleep(1)
-        # if retry_count > 6:
-        #     break
-        # if not wake_up_condition(): 
-        #     driver.get(INSTRUCTIONS_URL) # avoid calling query API too many times
-        #     driver.refresh() # avoiding auto logout
-        #     time.sleep(REST_TIME)
-        #     continue
-        # if not wake_up_condition_nap(): 
-        #     # not satisfying the condition to end nap, so continue
-        #     time.sleep(NAP_TIME)
-        # try:
-        #     print("------------------")
-        #     print(f"Current precise time ", datetime.now())
-        #     # print(f"Retry count: {retry_count}")
-        #     print()
-
-        #     dates = get_date()[:1]
-        #     if not dates:
-        #         msg = "List is empty! Maybe you were blocked. Sleep till next hour."
-        #         send_notification(msg)
-        #         wake_up_condition = wake_up_condition_blocked
-                
-        #         time.sleep(REST_TIME)
-        #         continue
-        #     else:
-        #         wake_up_condition = wake_up_condition_unblocked
-
-        #     print_dates(dates)
-        #     date = get_available_date(dates)
-        #     print()
-        #     print(f"New date: {date}")
-        #     if date:
-        #         reschedule(date)
-
-        #     if not dates:
-        #       msg = "List is empty"
-        #       send_notification(msg)
-        #       #EXIT = True
-        #       time.sleep(COOLDOWN_TIME)
-        #     else:
-        #       time.sleep(RETRY_TIME)
 
         except:
-            # retry_count += 1
             time.sleep(EXCEPTION_TIME)
 
     driver.close()
