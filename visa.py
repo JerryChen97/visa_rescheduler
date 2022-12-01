@@ -49,6 +49,7 @@ RETRY_TIME = 60*10  # wait time between retries/checks for available dates: 10 m
 EXCEPTION_TIME = 60*30  # wait time when an exception occurs: 30 minutes
 COOLDOWN_TIME = 60*60  # wait time when temporary banned (empty list): 60 minutes
 REST_TIME = 60*5 # rest time
+NAP_TIME = 10 # rest time shorter
 
 DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{FACILITY_ID}.json?appointments[expedite]=false"
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
@@ -245,6 +246,17 @@ def wake_up_condition_unblocked():
     minute = now.minute
     if minute % 10 >= 5: return True
     return False
+    
+def wake_up_condition_nap():
+    """
+        Only wake up before every 10 mins
+    """
+    now = datetime.now()
+    minute = now.minute
+    seconds= now.second
+    if minute % 10 == 0: return True
+    NAP_TIME = 60 - seconds
+    return False
 
 if __name__ == "__main__":
     
@@ -263,6 +275,9 @@ if __name__ == "__main__":
             driver.refresh() # avoiding auto logout
             time.sleep(REST_TIME)
             continue
+        if not wake_up_condition_nap(): 
+            # not satisfying the condition to end nap, so continue
+            time.sleep(NAP_TIME)
         try:
             print("------------------")
             print(f"Current precise time ", datetime.now())
