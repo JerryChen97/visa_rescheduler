@@ -227,6 +227,23 @@ def push_notification(dates):
         msg = msg + d.get('date') + '; '
     send_notification(msg)
 
+def wake_up_condition_blocked():
+    """
+        Only wake up before exact hours
+    """
+    now = datetime.now()
+    minute = now.minute()
+    if minute % 60 >= 58: return True
+    return False
+    
+def wake_up_condition_unblocked():
+    """
+        Only wake up before every 10 mins
+    """
+    now = datetime.now()
+    minute = now.minute()
+    if minute % 10 >= 9: return True
+    return False
 
 if __name__ == "__main__":
     
@@ -236,7 +253,7 @@ if __name__ == "__main__":
     get_current()
     send_notification("LOL")
     retry_count = 0
-    while 1:
+    while True:
         if retry_count > 6:
             break
         try:
