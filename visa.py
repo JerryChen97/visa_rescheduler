@@ -48,6 +48,7 @@ STEP_TIME = 0.5  # time between steps (interactions with forms): 0.5 seconds
 RETRY_TIME = 60*10  # wait time between retries/checks for available dates: 10 minutes
 EXCEPTION_TIME = 60*30  # wait time when an exception occurs: 30 minutes
 COOLDOWN_TIME = 60*60  # wait time when temporary banned (empty list): 60 minutes
+REST_TIME = 60*5 # rest time
 
 DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{FACILITY_ID}.json?appointments[expedite]=false"
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
@@ -233,7 +234,7 @@ def wake_up_condition_blocked():
     """
     now = datetime.now()
     minute = now.minute()
-    if minute % 60 >= 58: return True
+    if minute % 60 >= 55: return True
     return False
     
 def wake_up_condition_unblocked():
@@ -252,21 +253,33 @@ if __name__ == "__main__":
     login()
     get_current()
     send_notification("LOL")
-    retry_count = 0
+    # retry_count = 0
+
+    wake_up_condition = wake_up_condition_unblocked
     while True:
-        if retry_count > 6:
-            break
+        # if retry_count > 6:
+        #     break
+        if not wake_up_condition(): 
+            driver.refresh() # avoiding auto logout
+            time.sleep(REST_TIME)
+            continue
         try:
             print("------------------")
             print(f"Current precise time ", datetime.now())
-            print(datetime.today())
-            print(f"Retry count: {retry_count}")
+            # print(f"Retry count: {retry_count}")
             print()
 
-            dates = get_date()[:5]
+            dates = get_date()[:1]
             if not dates:
-              msg = "List is empty"
-              send_notification(msg)
+                msg = "List is empty! Maybe you were blocked. Sleep till next hour."
+                send_notification(msg)
+                wake_up_condition = wake_up_condition_blocked
+                
+                time.sleep(REST_TIME)
+                continue
+            else:
+                wake_up_condition = wake_up_condition_unblocked
+
             print_dates(dates)
             date = get_available_date(dates)
             print()
@@ -284,7 +297,7 @@ if __name__ == "__main__":
               time.sleep(RETRY_TIME)
 
         except:
-            retry_count += 1
+            # retry_count += 1
             time.sleep(EXCEPTION_TIME)
 
     driver.close()
