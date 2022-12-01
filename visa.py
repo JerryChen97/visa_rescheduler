@@ -53,7 +53,6 @@ DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_I
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
 APPOINTMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment"
 INSTRUCTIONS_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/instructions"
-EXIT = False
 
 
 def send_notification(message):
@@ -157,8 +156,8 @@ def get_current(): # current scheduled date time
     return MY_SCHEDULE_DATE
 
 def reschedule(date):
-    global EXIT
     print(f"Starting Reschedule ({date})")
+    print(f"Current precise time ", datetime.now())
 
     time = get_time(date)
     driver.get(APPOINTMENT_URL)
@@ -230,6 +229,9 @@ def push_notification(dates):
 
 
 if __name__ == "__main__":
+    
+    print(f"Current precise time ", datetime.now())
+    print(f"Logging...")
     login()
     get_current()
     send_notification("LOL")
@@ -239,6 +241,7 @@ if __name__ == "__main__":
             break
         try:
             print("------------------")
+            print(f"Current precise time ", datetime.now())
             print(datetime.today())
             print(f"Retry count: {retry_count}")
             print()
@@ -247,7 +250,6 @@ if __name__ == "__main__":
             if not dates:
               msg = "List is empty"
               send_notification(msg)
-              EXIT = True
             print_dates(dates)
             date = get_available_date(dates)
             print()
@@ -255,10 +257,6 @@ if __name__ == "__main__":
             if date:
                 reschedule(date)
                 push_notification(dates)
-
-            if(EXIT):
-                print("------------------exit")
-                break
 
             if not dates:
               msg = "List is empty"
@@ -272,8 +270,6 @@ if __name__ == "__main__":
             retry_count += 1
             time.sleep(EXCEPTION_TIME)
 
-    if(not EXIT):
-        send_notification("HELP! Crashed.")
     driver.close()
     pass
 
