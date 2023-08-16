@@ -2,12 +2,16 @@
 
 import time
 import json
+import logging
 import random
 import platform
 import configparser
 from datetime import datetime
 
 import requests
+
+from bs4 import BeautifulSoup
+
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support import expected_conditions as EC
@@ -56,8 +60,12 @@ DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_I
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date=%s&appointments[expedite]=false"
 APPOINTMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment"
 INSTRUCTIONS_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/instructions"
+REFERER_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/continue_actions"
+PAYMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/payment"
 
 MY_SCHEDULE_DATE = datetime.strptime("2024-11-11", "%Y-%m-%d")
+
+logging.basicConfig(level=logging.INFO, filename="visa.log", filemode="a+", format="%(asctime)-15s %(levelname)-8s %(message)s")
 
 def print_current_time():
     print(f"Current precise time ", datetime.now())
@@ -70,6 +78,7 @@ def send_notification(message):
         'chat_id': CHATID,
         'text': message
     }
+    logging.info(message)
     return requests.post(url, parameters)
 
 def get_driver():
@@ -127,6 +136,9 @@ def do_login_action():
 
 
 def get_date():
+    """
+        Get current available dates
+    """
     driver.get(DATE_URL)
     if not is_logged_in():
         login()
@@ -135,9 +147,41 @@ def get_date():
         content = driver.find_element(By.TAG_NAME, 'pre').text
         date = json.loads(content)
         return date
+def get_date2():
+    req = requests.Session()
+    headers = {
+        "User-Agent": driver.execute_script("return navigator.userAgent;"),
+        "Referer": REFERER_URL,
+        "Cookie": "_yatri_session=" + driver.get_cookie("_yatri_session")["value"]
+    }
+    r = req.get(PAYMENT_URL, headers=headers)
+    if r.status_code != 200:
+        print("Error")
+    soup = BeautifulSoup(r.text, "html.parser")
+    time_table = soup.find("table", {"class": "for-layout"})
+    print(time_table)
+    result = []
+    if time_table:
+        for tr in time_table.find_all("tr"):
+            tds = tr.find_all("td")
+            if not len(tds) == 2:
+                continue
+            place = tds[0].text
+            date_str = tds[1].text
+            s = date_str.split()
+            year, month, day = 0, 0, 0
+            if len(s) >= 3 and s[0] != "No":
+                day_str, month_str, year_str = s[-3], s[-2].replace(",", ""), s[-1]
+                year, month, day = int(year_str), g.MONTH[month_str], int(day_str)
+            result.append([place, (year, month, day)])
+
+    return result
 
 
 def get_time(date):
+    """
+        Given the date, get the available time slots
+    """
     time_url = TIME_URL % date
     driver.get(time_url)
     content = driver.find_element(By.TAG_NAME, 'pre').text
@@ -212,9 +256,10 @@ def print_dates(dates):
 def get_available_date(dates):
     
     def is_earlier(date):
+        my_date = get_current()
         new_date = datetime.strptime(date, "%Y-%m-%d")
-        result = MY_SCHEDULE_DATE > new_date
-        print(f'Is {MY_SCHEDULE_DATE} > {new_date} ?\t{result}')
+        result = my_date > new_date
+        print(f'Is {my_date} > {new_date} ?\t{result}')
         return result
 
     print("Checking for an earlier date:")
@@ -230,9 +275,11 @@ def update_reschedule():
     
     print("RESCHEDULE")
     print_current_time()
-    dates = get_date()[:2]
-    print_dates(dates)
-    date = get_available_date(dates)
+    dates = get_date()
+    if not len(dates)==0: send_notification(f"All dates listed here: {dates}")
+    first_2_dates = dates[:2]
+    # print_dates()
+    date = get_available_date(first_2_dates)
     print()
     print(f"New date: {date}")
     if date:
@@ -276,13 +323,39 @@ if __name__ == "__main__":
     get_current()
     send_notification("LOL")
 
+    print('test ')
+    get_date2()
+
+    seconds = ":01"
+
     schedule.every(3.3).minutes.do(refresh)
-    schedule.every().hour.at(":00").do(update_reschedule)
-    schedule.every().hour.at(":10").do(update_reschedule)
-    schedule.every().hour.at(":20").do(update_reschedule)
-    schedule.every().hour.at(":30").do(update_reschedule)
-    schedule.every().hour.at(":40").do(update_reschedule)
-    schedule.every().hour.at(":50").do(update_reschedule)
+    # schedule.every(2).minutes.at(seconds).do(update_reschedule)
+    # schedule.every(2).minutes.at(seconds).do(update_reschedule)
+    # schedule.every().hour.at("16:01").do(update_reschedule)
+    # schedule.every().hour.at("56:01").do(update_reschedule)
+    # for i in range(0, 59, 2):
+    #     if i >= 10:
+    #         minute = str(i)
+    #     else:
+    #         minute = "0"+str(i)
+    #         pass
+    #     minute_seconds = minute+seconds
+    #     print(minute_seconds)
+    #     schedule.every().hour.at(minute_seconds).do(update_reschedule)
+    # schedule.every().minute.do(update_reschedule)
+    
+    schedule.every().hour.at("51:01").do(update_reschedule)
+    schedule.every().hour.at("25:01").do(update_reschedule)
+    schedule.every(50).to(200).seconds.do(update_reschedule)
+    
+    # schedule.every().hour.at("20:01").do(update_reschedule)
+    # schedule.every().hour.at("25:01").do(update_reschedule)
+    # schedule.every().hour.at("30:01").do(update_reschedule)
+    # schedule.every().hour.at("35:01").do(update_reschedule)
+    # schedule.every().hour.at("40:01").do(update_reschedule)
+    # schedule.every().hour.at("45:01").do(update_reschedule)
+    # schedule.every().hour.at("50:01").do(update_reschedule)
+    # schedule.every().hour.at("55:01").do(update_reschedule)
 
     while True:
         try:
